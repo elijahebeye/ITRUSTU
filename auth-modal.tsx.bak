@@ -1,0 +1,177 @@
+import { useState } from "react";
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Shield, Coins, AlertCircle, Mail } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+interface AuthModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  defaultMode?: 'login' | 'register';
+}
+
+export default function AuthModal({ isOpen, onClose, defaultMode = 'register' }: AuthModalProps) {
+  const [email, setEmail] = useState("");
+  const [isLogin, setIsLogin] = useState(defaultMode === 'login');
+  const { toast } = useToast();
+
+  const authMutation = useMutation({
+    mutationFn: async (data: { email: string }) => {
+      const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
+      return apiRequest("POST", endpoint, data);
+    },
+    onSuccess: () => {
+      toast({
+        title: isLogin ? "Welcome back!" : "Registration successful!",
+        description: isLogin 
+          ? "You've been logged in successfully." 
+          : "Welcome to the iTRUST platform!",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      onClose();
+      setEmail("");
+    },
+    onError: (error) => {
+      toast({
+        title: "Authentication failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email.trim()) {
+      toast({
+        title: "Email required",
+        description: "Please enter your email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    authMutation.mutate({ email: email.trim() });
+  };
+
+  const handleModeSwitch = () => {
+    setIsLogin(!isLogin);
+    setEmail("");
+    // Clear any previous errors
+    authMutation.reset();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md" data-testid="auth-modal">
+        <DialogHeader>
+          <div className="flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+              <Shield className="w-8 h-8 text-primary" />
+            </div>
+          </div>
+          <DialogTitle className="text-center text-2xl">
+            {isLogin ? "Welcome Back" : "Join iTRUST"}
+          </DialogTitle>
+          <DialogDescription className="text-center">
+            {isLogin 
+              ? "Sign in to access your dashboard and vouch for others" 
+              : "Start building your reputation and earning TRUST tokens"
+            }
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="auth-email">Email Address</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+              <Input
+                id="auth-email"
+                type="email"
+                placeholder="Enter your email..."
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="pl-10"
+                required
+                data-testid="auth-input-email"
+              />
+            </div>
+          </div>
+
+          {!isLogin && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start text-sm">
+                <Coins className="w-4 h-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+                <div className="text-blue-800">
+                  <div className="font-medium">Early Bird Bonus!</div>
+                  <div>First 400 users get up to 300 TRUST tokens</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {authMutation.isError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-center text-sm text-red-800">
+                <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                <span>Authentication failed. Please try again.</span>
+              </div>
+            </div>
+          )}
+
+          <Button 
+            type="submit" 
+            className="w-full"
+            disabled={authMutation.isPending || !email.trim()}
+            data-testid="auth-button-submit"
+          >
+            {authMutation.isPending 
+              ? "Please wait..." 
+              : isLogin 
+                ? "Sign In" 
+                : "Join iTRUST Platform"
+            }
+          </Button>
+        </form>
+
+        <div className="text-center pt-4 border-t">
+          <button 
+            type="button"
+            className="text-sm text-gray-600 hover:text-primary transition-colors"
+            onClick={handleModeSwitch}
+            disabled={authMutation.isPending}
+            data-testid="auth-button-toggle"
+          >
+            {isLogin 
+              ? "Don't have an account? Sign up" 
+              : "Already have an account? Sign in"
+            }
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

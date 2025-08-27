@@ -1,0 +1,343 @@
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { 
+  Trophy, 
+  Crown,
+  User,
+  Activity,
+  Handshake,
+  Medal,
+  Award,
+  Target
+} from "lucide-react";
+import { useState } from "react";
+import Navigation from "@/components/navigation";
+import VouchModal from "@/components/vouch-modal";
+import { useAuth } from "@/hooks/useAuth";
+
+interface LeaderboardUser {
+  id: string;
+  displayName: string;
+  profilePicture?: string;
+  reputation: number;
+  trustBalance: string;
+  joinOrder: number;
+  rank: number;
+}
+
+export default function Leaderboard() {
+  const [selectedUser, setSelectedUser] = useState<LeaderboardUser | null>(null);
+  const [showVouchModal, setShowVouchModal] = useState(false);
+  const { user: currentUser } = useAuth();
+
+  const { data: leaderboard, isLoading } = useQuery<LeaderboardUser[]>({
+    queryKey: ["/api/leaderboard"],
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  const { data: userStats } = useQuery({
+    queryKey: ["/api/user/stats"],
+    refetchInterval: 30000,
+  });
+
+  const handleVouch = (user: LeaderboardUser) => {
+    setSelectedUser(user);
+    setShowVouchModal(true);
+  };
+
+  const getRankIcon = (rank: number) => {
+    switch (rank) {
+      case 1:
+        return <Crown className="text-yellow-500 w-5 h-5" />;
+      case 2:
+        return <Medal className="text-gray-400 w-5 h-5" />;
+      case 3:
+        return <Award className="text-amber-600 w-5 h-5" />;
+      default:
+        return null;
+    }
+  };
+
+  const getRankColor = (rank: number) => {
+    switch (rank) {
+      case 1:
+        return "text-yellow-600 font-bold";
+      case 2:
+        return "text-gray-500 font-bold";
+      case 3:
+        return "text-amber-600 font-bold";
+      default:
+        return "text-gray-700 font-bold";
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Skeleton className="h-12 w-64 mb-8" />
+          <Skeleton className="h-96" />
+        </div>
+      </div>
+    );
+  }
+
+  const currentUserRank = leaderboard?.find(user => user.id === currentUser?.id);
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Navigation />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <Trophy className="text-secondary w-8 h-8" />
+              <h1 className="text-3xl font-bold text-gray-900">iTRUST Leaderboard</h1>
+            </div>
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              <Activity className="w-4 h-4 animate-pulse" />
+              <span>Live Updates</span>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-r from-primary to-blue-700 text-white rounded-lg p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">Top 100 Most Trusted Members</h2>
+                <p className="text-blue-100">
+                  Rankings are based on community vouches and updated in real-time
+                </p>
+              </div>
+              {currentUserRank && (
+                <div className="text-right">
+                  <div className="text-2xl font-bold">#{currentUserRank.rank}</div>
+                  <div className="text-blue-200 text-sm">Your Rank</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Top 3 Podium */}
+        {leaderboard && leaderboard.length >= 3 && (
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+              <Target className="w-5 h-5 mr-2 text-primary" />
+              Top 3 Champions
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {leaderboard.slice(0, 3).map((user, index) => {
+                const isCurrentUser = user.id === currentUser?.id;
+                const positions = [1, 0, 2]; // Center, Left, Right for 1st, 2nd, 3rd
+                const heights = ['h-32', 'h-24', 'h-20']; // Different heights for podium effect
+                const actualIndex = positions[index];
+                
+                return (
+                  <div 
+                    key={user.id}
+                    className={`${index === 1 ? 'md:order-1' : index === 2 ? 'md:order-3' : 'md:order-2'}`}
+                  >
+                    <Card className={`${isCurrentUser ? 'ring-2 ring-primary bg-blue-50' : ''} hover:shadow-lg transition-shadow`}>
+                      <CardContent className="p-6 text-center">
+                        <div className={`${heights[index]} bg-gradient-to-t ${
+                          index === 0 ? 'from-yellow-400 to-yellow-300' :
+                          index === 1 ? 'from-gray-400 to-gray-300' :
+                          'from-amber-600 to-amber-500'
+                        } rounded-lg flex items-center justify-center mb-4`}>
+                          <div className="text-white text-2xl font-bold">#{user.rank}</div>
+                        </div>
+                        
+                        <Avatar className="w-20 h-20 mx-auto mb-4 border-4 border-white shadow-lg">
+                          <AvatarImage src={user.profilePicture} alt={user.displayName} />
+                          <AvatarFallback className="text-lg bg-primary text-white">
+                            {user.displayName.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+
+                        <h3 className="font-bold text-lg text-gray-900 mb-1">
+                          {user.displayName}
+                          {isCurrentUser && <span className="text-primary ml-1">(You)</span>}
+                        </h3>
+                        <p className="text-sm text-gray-500 mb-2">Member #{user.joinOrder}</p>
+                        
+                        <div className="space-y-2 mb-4">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Reputation</span>
+                            <span className="font-bold text-primary">{user.reputation}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">TRUST</span>
+                            <span className="font-semibold text-secondary">
+                              {parseFloat(user.trustBalance).toFixed(1)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {!isCurrentUser && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleVouch(user)}
+                            disabled={!currentUser || parseFloat(currentUser.trustBalance) < 0.2}
+                            className="w-full"
+                            data-testid={`button-vouch-podium-${user.id}`}
+                          >
+                            <Handshake className="w-4 h-4 mr-1" />
+                            Vouch
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Full Leaderboard Table */}
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Complete Rankings</h2>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="text-left py-4 px-4 font-semibold text-gray-700">Rank</th>
+                    <th className="text-left py-4 px-4 font-semibold text-gray-700">Member</th>
+                    <th className="text-center py-4 px-4 font-semibold text-gray-700">Reputation</th>
+                    <th className="text-center py-4 px-4 font-semibold text-gray-700">TRUST Balance</th>
+                    <th className="text-center py-4 px-4 font-semibold text-gray-700">Member #</th>
+                    <th className="text-center py-4 px-4 font-semibold text-gray-700">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboard?.map((user) => {
+                    const isCurrentUser = user.id === currentUser?.id;
+                    return (
+                      <tr 
+                        key={user.id}
+                        className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                          isCurrentUser ? 'bg-blue-50 border-blue-200' : ''
+                        }`}
+                        data-testid={`leaderboard-row-${user.id}`}
+                      >
+                        <td className="py-4 px-4">
+                          <div className="flex items-center space-x-2">
+                            <span className={`text-lg ${getRankColor(user.rank)}`}>
+                              #{user.rank}
+                            </span>
+                            {getRankIcon(user.rank)}
+                          </div>
+                        </td>
+                        
+                        <td className="py-4 px-4">
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="w-12 h-12">
+                              <AvatarImage src={user.profilePicture} alt={user.displayName} />
+                              <AvatarFallback className="bg-primary text-white">
+                                {user.displayName.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-semibold text-gray-900 flex items-center">
+                                {user.displayName}
+                                {isCurrentUser && (
+                                  <>
+                                    <span className="text-primary ml-2 font-medium">(You)</span>
+                                    <User className="text-primary ml-1 w-4 h-4" />
+                                  </>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                Joined: Member #{user.joinOrder}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        
+                        <td className="py-4 px-4 text-center">
+                          <div className="font-bold text-lg text-primary">
+                            {user.reputation.toLocaleString()}
+                          </div>
+                          <div className="text-xs text-gray-500">vouches</div>
+                        </td>
+                        
+                        <td className="py-4 px-4 text-center">
+                          <div className="font-semibold text-secondary">
+                            {parseFloat(user.trustBalance).toFixed(1)}
+                          </div>
+                          <div className="text-xs text-gray-500">TRUST</div>
+                        </td>
+                        
+                        <td className="py-4 px-4 text-center">
+                          <div className="font-medium text-gray-700">
+                            #{user.joinOrder}
+                          </div>
+                        </td>
+                        
+                        <td className="py-4 px-4 text-center">
+                          {isCurrentUser ? (
+                            <div className="flex items-center justify-center text-gray-500 text-sm">
+                              <User className="w-4 h-4 mr-1" />
+                              Your Profile
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={() => handleVouch(user)}
+                              disabled={!currentUser || parseFloat(currentUser.trustBalance) < 0.2}
+                              data-testid={`button-vouch-table-${user.id}`}
+                            >
+                              <Handshake className="w-4 h-4 mr-1" />
+                              Vouch
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {!leaderboard || leaderboard.length === 0 && (
+              <div className="text-center py-12">
+                <Trophy className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Rankings Yet</h3>
+                <p className="text-gray-500">
+                  Be the first to join and start building your reputation!
+                </p>
+              </div>
+            )}
+
+            {leaderboard && leaderboard.length >= 100 && (
+              <div className="mt-6 text-center text-gray-500">
+                <p className="text-sm">
+                  Showing top 100 members. Keep vouching to climb the rankings!
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Vouch Modal */}
+      {showVouchModal && selectedUser && (
+        <VouchModal
+          user={selectedUser}
+          onClose={() => {
+            setShowVouchModal(false);
+            setSelectedUser(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
